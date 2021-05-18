@@ -15,11 +15,43 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+
+#generate messages
+find_package(rosidl_default_generators REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "messages/msg/Test.msg"
+  #DEPENDENCIES geometry_msgs
+)
+
+ament_export_dependencies(rosidl_default_runtime)
+
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
-# find_package(<dependency> REQUIRED)
+#find_package(gpiod REQUIRED)
+find_package(Threads REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(tinyxml_vendor REQUIRED)
+find_package(TinyXML REQUIRED)
+
+
+add_executable(hw_interface src/main.cpp)
+
+target_link_libraries(hw_interface Threads::Threads)
+target_link_libraries(hw_interface -lgpiodcxx)
+target_link_libraries(hw_interface ${TinyXML_LIBRARIES})
+
+rosidl_target_interfaces(hw_interface
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
+ament_target_dependencies(hw_interface rclcpp)
+
+install(TARGETS hw_interface DESTINATION lib/${PROJECT_NAME})
+
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
