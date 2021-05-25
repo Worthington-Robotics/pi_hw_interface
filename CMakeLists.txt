@@ -38,19 +38,22 @@ find_package(tinyxml_vendor REQUIRED)
 find_package(TinyXML REQUIRED)
 
 
-add_executable(hw_interface src/main.cpp)
+add_executable(hw_interface src/interface.cpp)
+add_executable(test_ex src/main.cpp)
 
 target_link_libraries(hw_interface Threads::Threads)
 target_link_libraries(hw_interface -lgpiodcxx)
 target_link_libraries(hw_interface ${TinyXML_LIBRARIES})
+ament_target_dependencies(hw_interface rclcpp)
+
+target_link_libraries(test_ex Threads::Threads)
+target_link_libraries(test_ex -lgpiodcxx)
 
 rosidl_target_interfaces(hw_interface
   ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
-ament_target_dependencies(hw_interface rclcpp)
-
 install(TARGETS hw_interface DESTINATION lib/${PROJECT_NAME})
-
+install(TARGETS test_ex DESTINATION lib/${PROJECT_NAME})
 
 
 if(BUILD_TESTING)

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hardware>
+    <gpios>
+        <gpio>
+            <topic>relay1</topic>
+            <port>10</port>
+            <dir>OUT</dir>
+        </gpio>
+        <gpio>
+            <topic>relay2</topic>
+            <port>11</port>
+            <dir>OUT</dir>
+        </gpio>
+        <gpio>
+            <topic>button1</topic>
+            <port>12</port>
+            <dir>IN</dir>
+            <pull>UP</pull>
+        </gpio>
+        <gpio>
+            <topic>button2</topic>
+            <port>13</port>
+            <dir>IN</dir>
+            <pull>UP</pull>
+        </gpio>
+    </gpios>
+    <i2cs>
+        <i2c>
+            <driver>display</driver>
+            <topic>char_disp</topic>
+        </i2c>
+    </i2cs>
+</hardware>
