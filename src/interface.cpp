@@ -86,4 +86,43 @@ int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
     std::shared_ptr<HardwareController> rosNode = std::make_shared<HardwareController>();
     RCLCPP_INFO(rosNode->get_logger(), "hardware interface node starting");
+
+    // Load the xml file
+    std::filesystem::path config = std::filesystem::current_path() / "config.xml";
+    TiXmlDocument* doc = new TiXmlDocument(config.c_str());
+    if (!doc->LoadFile()) {
+        RCLCPP_ERROR(rosNode->get_logger(), "Error parsing XML config %s\n %s", config.c_str(), doc->ErrorDesc());
+
+    } else {
+        try {
+            //std::shared_ptr<std::vector<robotmotors::MotorMap>> motors = robotmotors::createMotorMap(doc);
+            //RCLCPP_INFO(rosNode->get_logger(), "Recieved config for %d motor(s)", motors->size());
+            //rosNode->setMotors(motors);
+
+            //set all motors to neutral
+            //rosNode->neutralMotors();
+
+            RCLCPP_INFO(rosNode->get_logger(), "hardware interface node loaded using gpiod interface");
+
+            // serve the callbacks
+            rclcpp::spin(rosNode);
+
+            RCLCPP_INFO(rosNode->get_logger(), "hardware interface shutting down");
+
+            //set all motors to neutral
+            //rosNode->neutralMotors();
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(rosNode->get_logger(), "Node failed\nCause: %s", e.what());
+        } catch (...) {
+            RCLCPP_ERROR(rosNode->get_logger(), "Node failed\nCause Unknown");
+        }
+    }
+
+    delete doc;
+
+    RCLCPP_INFO(rosNode->get_logger(), "hardware interface shut down complete");
+
+    rclcpp::shutdown();
+
+    return 0;
 }
