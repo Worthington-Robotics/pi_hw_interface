@@ -21,20 +21,14 @@ using namespace std::chrono_literals;
 struct GpioPort {
     int port;
     std::string chip = "gpiochip0";
-    bool isOutput = false;
-    short pullDir = 0; // 0 is no change, 1 is up 2 is down
-};
-
-struct CameraConfig {
-    std::string rtspAddr;
-    bool useColor;
-    int outputWidth, outputHeight;
+    short pinDir = 0; //0 is output, 1 is input, 2 is safety and any other is as is
+    short pullDir = 0;  // 0 is no change, 1 is up 2 is down
 };
 
 class HardwareController : public rclcpp::Node {
 private:
     //map of all gpio lines requested by system
-    std::map<GpioPort, gpiod::line> lines;
+    std::map<std::shared_ptr<GpioPort>, std::shared_ptr<gpiod::line>> lines;
 
     //list of all subscribed topics
     std::vector<std::string> topics;
@@ -61,10 +55,50 @@ public:
         safetyTimer = create_wall_timer(SAFETY_TIMEOUT_CHECK, std::bind(&HardwareController::safetyTimerUpdate, this));
     }
 
-    void registerGpio(std::vector<GpioPort> & ports) {
-    }
+    void registerGpio(std::vector<std::shared_ptr<GpioPort>> ports) {
+        try {
+            //create all GPIO
+            for (auto it = ports.begin(); it != ports.end(); it++) {
+                std::shared_ptr<gpiod::chip> gpioChip = std::make_shared<gpiod::chip>(it->get()->chip);
+                std::shared_ptr<gpiod::line> line = std::make_shared<gpiod::line>(it->get()->port);
+                int dir = 0;
+                switch (it->get()->pinDir) {
+                case 0:
+                    dir = gpiod::line_request::DIRECTION_INPUT;
+                    break;
+                case 1:
+                    dir = gpiod::line_request::DIRECTION_OUTPUT;
+                    break;
+                case 2:
+                    dir = gpiod::line_request::DIRECTION_OUTPUT;
+                    break;
+                default:
+                    dir = gpiod::line_request::DIRECTION_AS_IS;
+                }
 
-    void registerCameras(std::vector<CameraConfig> & cameras) {
+                std::bitset<32UL> flags = 0;
+                switch (it->get()->pullDir)
+                {
+                case 1:
+                    flags |= gpiod::line_request::FLAG_BIAS_PULL_UP;
+                    break;
+                case 2:
+                    flags |= gpiod::line_request::FLAG_BIAS_PULL_DOWN;
+                    break;
+                default:
+                    flags |= gpiod::line_request::FLAG_BIAS_DISABLE;
+                    break;
+                }
+
+                line->request({"hw_interface", dir, flags});
+
+                lines->[it] = line;
+            }
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to bind Gpio\nCause: %s", e.what());
+        } catch (...) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to bind Gpio\nCause Unknown");
+        }
     }
 
     void feedSafety(std::shared_ptr<std_msgs::msg::Bool> msg) {
@@ -81,7 +115,7 @@ public:
     }
 };
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     //init ros node
     rclcpp::init(argc, argv);
     std::shared_ptr<HardwareController> rosNode = std::make_shared<HardwareController>();

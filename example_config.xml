@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <hardware>
+    <safety_topic>safety_enable</safety_topic>
     <gpios>
         <gpio>
             <topic>relay1</topic>
@@ -10,18 +11,25 @@
             <topic>relay2</topic>
             <port>11</port>
             <dir>OUT</dir>
+            <chip>gpiochip1</chip>
         </gpio>
         <gpio>
             <topic>button1</topic>
             <port>12</port>
             <dir>IN</dir>
             <pull>UP</pull>
+            <chip>gpiochip0</chip>
         </gpio>
         <gpio>
             <topic>button2</topic>
             <port>13</port>
             <dir>IN</dir>
             <pull>UP</pull>
+        </gpio>
+        <gpio>
+            <topic>safety_enable</topic>
+            <port>23</port>
+            <dir>SAFE</dir>
         </gpio>
     </gpios>
     <i2cs>
