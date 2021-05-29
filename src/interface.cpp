@@ -18,12 +18,17 @@
 using std::placeholders::_1;
 using namespace std::chrono_literals;
 
+bool getValue(TiXmlElement* elem, const std::string& childName, std::string& value);
+bool stob(std::string s);
+
 struct GpioPort {
     int port;
     std::string chip = "gpiochip0";
-    short pinDir = 0; //0 is output, 1 is input, 2 is safety and any other is as is
+    short pinDir = 0;   //0 is output, 1 is input, 2 is safety and any other is as is
     short pullDir = 0;  // 0 is no change, 1 is up 2 is down
 };
+
+std::shared_ptr<std::vector<GpioPort>> createGpioMap(TiXmlDocument* doc);
 
 class HardwareController : public rclcpp::Node {
 private:
@@ -48,6 +53,8 @@ private:
     //last time the safety stamp was set to true
     std::chrono::_V2::system_clock::duration safetyStamp;
 
+    bool safetyToggle = false;
+
 public:
     HardwareController() : Node("pi_hw_interface") {
         safetySubscrip = create_subscription<std_msgs::msg::Bool>("safety_enable", 10, std::bind(&HardwareController::feedSafety, this, _1));
@@ -59,8 +66,8 @@ public:
         try {
             //create all GPIO
             for (auto it = ports.begin(); it != ports.end(); it++) {
-                std::shared_ptr<gpiod::chip> gpioChip = std::make_shared<gpiod::chip>(it->get()->chip);
-                std::shared_ptr<gpiod::line> line = std::make_shared<gpiod::line>(it->get()->port);
+                std::shared_ptr<gpiod::chip> gpioChip = std::make_shared<gpiod::chip>((*it)->chip, 1);
+                std::shared_ptr<gpiod::line> line = std::make_shared<gpiod::line>(gpioChip->get_line((*it)->port));
                 int dir = 0;
                 switch (it->get()->pinDir) {
                 case 0:
@@ -77,8 +84,7 @@ public:
                 }
 
                 std::bitset<32UL> flags = 0;
-                switch (it->get()->pullDir)
-                {
+                switch (it->get()->pullDir) {
                 case 1:
                     flags |= gpiod::line_request::FLAG_BIAS_PULL_UP;
                     break;
@@ -92,7 +98,7 @@ public:
 
                 line->request({"hw_interface", dir, flags});
 
-                lines->[it] = line;
+                lines[*it] = line;
             }
         } catch (const std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "Failed to bind Gpio\nCause: %s", e.what());
@@ -112,6 +118,17 @@ public:
         auto now = std::chrono::system_clock::now().time_since_epoch();
         if (safetyEnable && (now - SAFETY_TIMEOUT > safetyStamp))
             safetyEnable = false;
+        if (safetyEnable && (now - (SAFETY_TIMEOUT / 2) > safetyStamp))
+            safetyToggle = !safetyToggle;
+    }
+
+    void safe(){
+        std::map<std::shared_ptr<GpioPort>, std::shared_ptr<gpiod::line>>::iterator it;
+        for(it = lines.begin(); it != lines.end(); it++){
+            if(it->second->direction() == (int)gpiod::line::DIRECTION_OUTPUT){
+                it->second->set_value(0);
+            }
+        }
     }
 };
 
@@ -133,8 +150,8 @@ int main(int argc, char** argv) {
             //RCLCPP_INFO(rosNode->get_logger(), "Recieved config for %d motor(s)", motors->size());
             //rosNode->setMotors(motors);
 
-            //set all motors to neutral
-            //rosNode->neutralMotors();
+            //set all gpio to off
+            rosNode->safe();
 
             RCLCPP_INFO(rosNode->get_logger(), "hardware interface node loaded using gpiod interface");
 
@@ -143,8 +160,8 @@ int main(int argc, char** argv) {
 
             RCLCPP_INFO(rosNode->get_logger(), "hardware interface shutting down");
 
-            //set all motors to neutral
-            //rosNode->neutralMotors();
+            //set all gpio to off
+            rosNode->safe();
         } catch (const std::exception& e) {
             RCLCPP_ERROR(rosNode->get_logger(), "Node failed\nCause: %s", e.what());
         } catch (...) {
@@ -159,4 +176,44 @@ int main(int argc, char** argv) {
     rclcpp::shutdown();
 
     return 0;
+}
+
+/**
+ * function to pull a child element from a parent element as text
+ * @param elem the parent XML element
+ * @param childName the name of the XML child element to find
+ * @param value the resulting value of the child element.
+ * @return bool true if the element was found or false if not found
+ **/
+bool getValue(TiXmlElement* elem, const std::string& childName, std::string& value) {
+    //std::cout << "checking for " << childName << std::endl;
+
+    //make sure child element and corresponding text exists
+    TiXmlElement* childElem = elem->FirstChildElement(childName);
+    if (!childElem) return false;
+
+    const char* xmlVal = childElem->GetText();
+    if (!xmlVal) return false;
+
+    value = std::string(xmlVal);
+    return true;
+}
+
+/**
+ * @param s the string to parse for a boolean
+ * @return the value of the resulting boolean
+ **/
+bool stob(std::string s) {
+    auto result = false;  // failure to assert is false
+
+    std::istringstream is(s);
+    // first try simple integer conversion
+    is >> result;
+
+    if (is.fail()) {
+        // simple integer failed; try boolean
+        is.clear();
+        is >> std::boolalpha >> result;
+    }
+    return result;
 }
