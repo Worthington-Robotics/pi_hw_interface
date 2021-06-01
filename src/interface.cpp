@@ -26,6 +26,8 @@ struct GpioPort {
     std::string chip = "gpiochip0";
     short pinDir = 0;   //0 is output, 1 is input, 2 is safety and any other is as is
     short pullDir = 0;  // 0 is no change, 1 is up 2 is down
+
+    std::string topic;
 };
 
 std::shared_ptr<std::vector<GpioPort>> createGpioMap(TiXmlDocument* doc);
@@ -122,10 +124,10 @@ public:
             safetyToggle = !safetyToggle;
     }
 
-    void safe(){
+    void safe() {
         std::map<std::shared_ptr<GpioPort>, std::shared_ptr<gpiod::line>>::iterator it;
-        for(it = lines.begin(); it != lines.end(); it++){
-            if(it->second->direction() == (int)gpiod::line::DIRECTION_OUTPUT){
+        for (it = lines.begin(); it != lines.end(); it++) {
+            if (it->second->direction() == (int)gpiod::line::DIRECTION_OUTPUT) {
                 it->second->set_value(0);
             }
         }
@@ -146,9 +148,37 @@ int main(int argc, char** argv) {
 
     } else {
         try {
-            //std::shared_ptr<std::vector<robotmotors::MotorMap>> motors = robotmotors::createMotorMap(doc);
-            //RCLCPP_INFO(rosNode->get_logger(), "Recieved config for %d motor(s)", motors->size());
-            //rosNode->setMotors(motors);
+            // grab the parent motor XML element and make sure it exists
+            TiXmlElement* hardware = doc->FirstChildElement("hardware");
+            if (!hardware) throw std::runtime_error("XML doc is missing root hardware element");
+            TiXmlElement* gpios = hardware->FirstChildElement("gpios");
+            if (!gpios) throw std::runtime_error("XML doc is missing gpios element. The gpios element should be defined even if there are no gpio being created");
+
+            std::vector<std::shared_ptr<GpioPort>> gpioList = std::vector<std::shared_ptr<GpioPort>>();
+
+            for (TiXmlElement* gpio = gpios->FirstChildElement("gpio"); gpio != nullptr; gpio = gpio->NextSiblingElement("gpio")) {
+                std::shared_ptr<GpioPort> port = std::make_shared<GpioPort>();
+                std::string tmp, tmp1;
+                if (!getValue(gpio, "topic", port->topic)) {
+                    throw std::runtime_error("Gpio definition missing topic name");
+                }
+                if (!getValue(gpio, "port", tmp)) {
+                    throw std::runtime_error("Gpio definition missing port number");
+                }
+                if (!getValue(gpio, "dir", tmp1)) {
+                    throw std::runtime_error("Gpio definition missing dir");
+                }
+                port->port = std::stoi(tmp);
+                port->pinDir = std::stoi(tmp1);
+
+                if(getValue(gpio, "pull", tmp)) port->pullDir = std::stoi(tmp);
+
+                gpioList.push_back(port);
+                
+            }
+
+            RCLCPP_INFO(rosNode->get_logger(), "Recieved config for %d gpio(s)", gpioList.size());
+            rosNode->registerGpio(gpioList);
 
             //set all gpio to off
             rosNode->safe();
