@@ -43,6 +43,7 @@ add_executable(test_ex src/main.cpp)
 
 target_link_libraries(hw_interface Threads::Threads)
 target_link_libraries(hw_interface -lgpiodcxx)
+target_link_libraries(hw_interface -lstdc++fs)
 target_link_libraries(hw_interface ${TinyXML_LIBRARIES})
 ament_target_dependencies(hw_interface rclcpp)
 
