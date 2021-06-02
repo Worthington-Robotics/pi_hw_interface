@@ -15,6 +15,8 @@
 #define SAFETY_TIMEOUT 100ms
 #define SAFETY_TIMEOUT_CHECK 10ms
 
+//#define ALLOW_PULL_DIR
+
 using std::placeholders::_1;
 using namespace std::chrono_literals;
 
@@ -86,6 +88,7 @@ public:
                 }
 
                 std::bitset<32UL> flags = 0;
+                #ifdef ALLOW_PULL_DIR
                 switch (it->get()->pullDir) {
                 case 1:
                     flags |= gpiod::line_request::FLAG_BIAS_PULL_UP;
@@ -97,6 +100,7 @@ public:
                     flags |= gpiod::line_request::FLAG_BIAS_DISABLE;
                     break;
                 }
+                #endif
 
                 line->request({"hw_interface", dir, flags});
 
