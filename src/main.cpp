@@ -28,7 +28,7 @@ int main(int argc, char** argv){
     //dirConfig.flags = gpiod::line_request::FLAG_ACTIVE_LOW;        // for active low
     //dirConfig.flags = 0;                                           // for active high
     //dirConfig.flags = gpiod::line_request::FLAG_BIAS_PULL_UP;      // for pull up resistors
-    dirConfig.flags = gpiod::line_request::FLAG_BIAS_PULL_DOWN;    // for pull down resistors
+    //dirConfig.flags = gpiod::line_request::FLAG_BIAS_PULL_DOWN;    // for pull down resistors
 
     line.request(dirConfig);
     
