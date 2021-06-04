@@ -219,8 +219,8 @@ int main(int argc, char** argv) {
 
             for (TiXmlElement* gpio = gpios->FirstChildElement("gpio"); gpio != nullptr; gpio = gpio->NextSiblingElement("gpio")) {
                 GpioPort port = {};
-                std::string tmp, tmp1;
-                if (!getValue(gpio, "topic", port.topic)) {
+                std::string tmp, tmp1, topic;
+                if (!getValue(gpio, "topic", topic)) {
                     throw std::runtime_error("Gpio definition missing topic name");
                 }
                 if (!getValue(gpio, "port", tmp)) {
@@ -230,8 +230,6 @@ int main(int argc, char** argv) {
                     throw std::runtime_error("Gpio definition missing dir");
                 }
 
-                RCLCPP_INFO(rosNode->get_logger(), "Got line config Topic: %s  Port: %s  Dir: %s", port.topic.c_str(), tmp.c_str(), tmp1.c_str());
-
                 port.port = std::stoi(tmp);
                 if(tmp1 == "OUT") port.pinDir = 1;
                 else if (tmp1 == "IN") port.pinDir = 0;
@@ -239,7 +237,11 @@ int main(int argc, char** argv) {
 
                 if(getValue(gpio, "pull", tmp)) port.pullDir = std::stoi(tmp);
 
+                port.topic = "pi_hw_interface/" + topic;
+
                 gpioList.push_back(port);
+
+                RCLCPP_INFO(rosNode->get_logger(), "Got line config Topic: %s  Port: %s  Dir: %s", port.topic.c_str(), tmp.c_str(), tmp1.c_str());
             }
 
             RCLCPP_INFO(rosNode->get_logger(), "Recieved config for %d gpio(s)", gpioList.size());
