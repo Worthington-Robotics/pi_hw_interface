@@ -48,8 +48,11 @@ private:
     std::shared_ptr<gpiod::line> line;
     std::shared_ptr<short> pinDir;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr pub;
+    rclcpp::TimerBase::SharedPtr pubTimer;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr sub;
+    bool unsafeFlag;
 public:
-    LineCaller(std::string & chip, int port, short pullDir, short pinDirConf){
+    LineCaller(std::string & chip, int port, short pullDir, short pinDirConf, rclcpp::Node & node, const std::string & topic){
         gpioChip = std::make_shared<gpiod::chip>(chip, 1);
         line = std::make_shared<gpiod::line>(gpioChip->get_line(port));
         pinDir = std::make_shared<short>(pinDirConf);
@@ -58,9 +61,12 @@ public:
         switch (*pinDir) {
         case 0:
             dir = gpiod::line_request::DIRECTION_INPUT;
+            pub = node.create_publisher<std_msgs::msg::Bool>(topic, 10);
+            pubTimer = node.create_wall_timer(10ms, std::bind(&LineCaller::readCallback, this));
             break;
         case 1:
             dir = gpiod::line_request::DIRECTION_OUTPUT;
+            sub = node.create_subscription<std_msgs::msg::Bool>(topic, 10, std::bind(&LineCaller::updateCallback, this, _1));
             break;
         case 2:
             dir = gpiod::line_request::DIRECTION_OUTPUT;
@@ -87,16 +93,15 @@ public:
         line->request({"hw_interface", dir, flags});
     }
 
-    void setPublisher(rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr publisher){
-        pub = publisher;
-    }
-
     short getDir(){
         return *(pinDir);
     }
 
     void setVal(bool val){
-        if(*pinDir > 0) line->set_value(val);
+        if(*pinDir > 0){
+            if(unsafeFlag)line->set_value(val);
+            else line->set_value(false);
+        } 
     }
 
     void updateCallback(std::shared_ptr<std_msgs::msg::Bool> msg){
@@ -111,6 +116,10 @@ public:
         }
     }
 
+    void setSafeFlag(bool flag){
+        unsafeFlag = flag;
+    }
+
 };
 
 class HardwareController : public rclcpp::Node {
@@ -120,9 +129,6 @@ private:
 
     //list of all subscribed topics
     std::vector<std::string> topics;
-
-    //subscriptions for all motor inputs
-    std::vector<rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr> lineSubscriptions;
 
     //safety enable subscription that allows motors to be active
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr safetySubscrip;
@@ -151,10 +157,7 @@ public:
             for (auto it = ports.begin(); it != ports.end(); it++) {
                 //RCLCPP_INFO(this->get_logger(), "Creating LineCaller %s %d %d %d", it->chip.c_str(), it->port, it->pullDir, it->pinDir);
 
-                std::shared_ptr<LineCaller> line = std::make_shared<LineCaller>(it->chip, it->port, it->pullDir, it->pinDir);
-
-                lineSubscriptions.push_back(this->create_subscription<std_msgs::msg::Bool>(it->topic, 10,
-                                                                                                   std::bind(&LineCaller::updateCallback, line, _1)));
+                std::shared_ptr<LineCaller> line = std::make_shared<LineCaller>(it->chip, it->port, it->pullDir, it->pinDir, (*this), it->topic);
 
                 lines[*it] = line;
             }
@@ -166,8 +169,11 @@ public:
     }
 
     void feedSafety(std::shared_ptr<std_msgs::msg::Bool> msg) {
-        if (msg->data) {
+        if (msg->data){
             safetyStamp = std::chrono::system_clock::now().time_since_epoch();
+        }
+        if (msg->data && !safetyEnable) {
+            unsafe();
             safetyEnable = true;
         }
     }
@@ -181,15 +187,26 @@ public:
             safe();
         }
             
-        if (safetyEnable && (now - (SAFETY_TIMEOUT / 2) > safetyStamp))
-            safetyToggle = !safetyToggle;
+        //if (safetyEnable && (now - (SAFETY_TIMEOUT / 2) > safetyStamp))
+        //    safetyToggle = !safetyToggle;
     }
 
     void safe() {
         std::map<GpioPort, std::shared_ptr<LineCaller>>::iterator it;
         for (it = lines.begin(); it != lines.end(); it++) {
             if (it->second->getDir() > 0) {
-                it->second->setVal(0);
+                RCLCPP_INFO(this->get_logger(), "Safing line");
+                it->second->setSafeFlag(false);
+            }
+        }
+    }
+
+    void unsafe(){
+        std::map<GpioPort, std::shared_ptr<LineCaller>>::iterator it;
+        for (it = lines.begin(); it != lines.end(); it++) {
+            if (it->second->getDir() > 0) {
+                RCLCPP_INFO(this->get_logger(), "Unsafing line");
+                it->second->setSafeFlag(true);
             }
         }
     }
