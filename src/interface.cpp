@@ -197,6 +197,7 @@ public:
             if (it->second->getDir() > 0) {
                 RCLCPP_INFO(this->get_logger(), "Safing line");
                 it->second->setSafeFlag(false);
+                it->second->setVal(false);
             }
         }
     }
