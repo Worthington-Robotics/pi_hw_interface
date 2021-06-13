@@ -197,6 +197,7 @@ public:
         for (it = lines.begin(); it != lines.end(); it++) {
             if (it->second->getDir() > 0) {
                 it->second->setSafeFlag(false);
+                it->second->setVal(false);
             }
         }
     }
