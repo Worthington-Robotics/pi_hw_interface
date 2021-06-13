@@ -32,12 +32,12 @@ struct GpioPort {
     std::string topic;
 
     // comparison operators needed for mapping
-    friend bool operator<(const GpioPort & l, const GpioPort & r){
+    friend bool operator<(const GpioPort& l, const GpioPort& r) {
         return std::tie(l.chip, l.port) < std::tie(r.chip, r.port);
     }
-    friend bool operator> (const GpioPort& lhs, const GpioPort& rhs){ return rhs < lhs; }
-    friend bool operator<=(const GpioPort& lhs, const GpioPort& rhs){ return !(lhs > rhs); }
-    friend bool operator>=(const GpioPort& lhs, const GpioPort& rhs){ return !(lhs < rhs); }
+    friend bool operator>(const GpioPort& lhs, const GpioPort& rhs) { return rhs < lhs; }
+    friend bool operator<=(const GpioPort& lhs, const GpioPort& rhs) { return !(lhs > rhs); }
+    friend bool operator>=(const GpioPort& lhs, const GpioPort& rhs) { return !(lhs < rhs); }
 };
 
 std::shared_ptr<std::vector<GpioPort>> createGpioMap(TiXmlDocument* doc);
@@ -51,8 +51,9 @@ private:
     rclcpp::TimerBase::SharedPtr pubTimer;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr sub;
     bool unsafeFlag;
+
 public:
-    LineCaller(std::string & chip, int port, short pullDir, short pinDirConf, rclcpp::Node & node, const std::string & topic){
+    LineCaller(std::string& chip, int port, short pullDir, short pinDirConf, rclcpp::Node& node, const std::string& topic) {
         gpioChip = std::make_shared<gpiod::chip>(chip, 1);
         line = std::make_shared<gpiod::line>(gpioChip->get_line(port));
         pinDir = std::make_shared<short>(pinDirConf);
@@ -76,7 +77,7 @@ public:
         }
 
         std::bitset<32UL> flags = 0;
-        #ifdef ALLOW_PULL_DIR
+#ifdef ALLOW_PULL_DIR
         switch (pullDir) {
         case 1:
             flags |= gpiod::line_request::FLAG_BIAS_PULL_UP;
@@ -88,38 +89,40 @@ public:
             flags |= gpiod::line_request::FLAG_BIAS_DISABLE;
             break;
         }
-        #endif
+#endif
 
         line->request({"hw_interface", dir, flags});
     }
 
-    short getDir(){
+    short getDir() {
         return *(pinDir);
     }
 
-    void setVal(bool val){
-        if(*pinDir > 0){
-            if(unsafeFlag)line->set_value(val);
-            else line->set_value(false);
-        } 
+    void setVal(bool val) {
+        if (*pinDir > 0) {
+            if (unsafeFlag)
+            std::cout << "setting line to " << val << std::endl;
+                line->set_value(val);
+            else
+                line->set_value(false);
+        }
     }
 
-    void updateCallback(std::shared_ptr<std_msgs::msg::Bool> msg){
+    void updateCallback(std::shared_ptr<std_msgs::msg::Bool> msg) {
         setVal(msg->data);
     }
 
-    void readCallback(){
-        if(*pinDir == 0){
+    void readCallback() {
+        if (*pinDir == 0) {
             std_msgs::msg::Bool msg = std_msgs::msg::Bool();
             msg.data = line->get_value();
             pub->publish(msg);
         }
     }
 
-    void setSafeFlag(bool flag){
+    void setSafeFlag(bool flag) {
         unsafeFlag = flag;
     }
-
 };
 
 class HardwareController : public rclcpp::Node {
@@ -169,44 +172,44 @@ public:
     }
 
     void feedSafety(std::shared_ptr<std_msgs::msg::Bool> msg) {
-        if (msg->data){
+        if (msg->data) {
             safetyStamp = std::chrono::system_clock::now().time_since_epoch();
-        }
-        if (msg->data && !safetyEnable) {
             unsafe();
-            safetyEnable = true;
         }
     }
 
     void safetyTimerUpdate() {
         //RCLCPP_INFO(this->get_logger(), "Safety timer tick");
         auto now = std::chrono::system_clock::now().time_since_epoch();
-        if (safetyEnable && (now - SAFETY_TIMEOUT > safetyStamp)){
+        if (safetyEnable && (now - SAFETY_TIMEOUT > safetyStamp)) {
             RCLCPP_INFO(this->get_logger(), "Safety timer expired");
-            safetyEnable = false;
             safe();
         }
-            
+
         //if (safetyEnable && (now - (SAFETY_TIMEOUT / 2) > safetyStamp))
         //    safetyToggle = !safetyToggle;
     }
 
     void safe() {
+        safetyEnable = false;
+        RCLCPP_INFO(this->get_logger(), "Safing lines");
         std::map<GpioPort, std::shared_ptr<LineCaller>>::iterator it;
         for (it = lines.begin(); it != lines.end(); it++) {
             if (it->second->getDir() > 0) {
-                RCLCPP_INFO(this->get_logger(), "Safing line");
                 it->second->setSafeFlag(false);
             }
         }
     }
 
-    void unsafe(){
-        std::map<GpioPort, std::shared_ptr<LineCaller>>::iterator it;
-        for (it = lines.begin(); it != lines.end(); it++) {
-            if (it->second->getDir() > 0) {
-                RCLCPP_INFO(this->get_logger(), "Unsafing line");
-                it->second->setSafeFlag(true);
+    void unsafe() {
+        if (!safetyEnable) {
+            RCLCPP_INFO(this->get_logger(), "Unsafing lines");
+            safetyEnable = true;
+            std::map<GpioPort, std::shared_ptr<LineCaller>>::iterator it;
+            for (it = lines.begin(); it != lines.end(); it++) {
+                if (it->second->getDir() > 0) {
+                    it->second->setSafeFlag(true);
+                }
             }
         }
     }
@@ -231,7 +234,7 @@ int main(int argc, char** argv) {
             TiXmlElement* gpios = hardware->FirstChildElement("gpios");
             if (!gpios) throw std::runtime_error("XML doc is missing gpios element. The gpios element should be defined even if there are no gpio being created");
 
-           // RCLCPP_INFO(rosNode->get_logger(), "XML doc loaded, outer parts intact");
+            // RCLCPP_INFO(rosNode->get_logger(), "XML doc loaded, outer parts intact");
             std::vector<GpioPort> gpioList = std::vector<GpioPort>();
 
             for (TiXmlElement* gpio = gpios->FirstChildElement("gpio"); gpio != nullptr; gpio = gpio->NextSiblingElement("gpio")) {
@@ -248,11 +251,14 @@ int main(int argc, char** argv) {
                 }
 
                 port.port = std::stoi(tmp);
-                if(tmp1 == "OUT") port.pinDir = 1;
-                else if (tmp1 == "IN") port.pinDir = 0;
-                else port.pinDir = 3;
+                if (tmp1 == "OUT")
+                    port.pinDir = 1;
+                else if (tmp1 == "IN")
+                    port.pinDir = 0;
+                else
+                    port.pinDir = 3;
 
-                if(getValue(gpio, "pull", tmp)) port.pullDir = std::stoi(tmp);
+                if (getValue(gpio, "pull", tmp)) port.pullDir = std::stoi(tmp);
 
                 port.topic = "pi_hw_interface/" + topic;
 
