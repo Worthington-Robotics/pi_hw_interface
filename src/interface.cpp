@@ -100,10 +100,10 @@ public:
 
     void setVal(bool val) {
         if (*pinDir > 0) {
-            if (unsafeFlag)
-            std::cout << "setting line to " << val << std::endl;
+            if (unsafeFlag) {
+                std::cout << "setting line to " << val << std::endl;
                 line->set_value(val);
-            else
+            } else
                 line->set_value(false);
         }
     }
