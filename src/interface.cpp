@@ -100,11 +100,7 @@ public:
 
     void setVal(bool val) {
         if (*pinDir > 0) {
-            if (unsafeFlag) {
-                //std::cout << "setting line to " << val << std::endl;
-                line->set_value(val);
-            } else
-                line->set_value(false);
+            line->set_value(val);
         }
     }
 
@@ -118,10 +114,6 @@ public:
             msg.data = line->get_value();
             pub->publish(msg);
         }
-    }
-
-    void setSafeFlag(bool flag) {
-        unsafeFlag = flag;
     }
 };
 
@@ -149,9 +141,9 @@ private:
 
 public:
     HardwareController() : Node("pi_hw_interface") {
-        safetySubscrip = create_subscription<std_msgs::msg::Bool>("safety_enable", 10, std::bind(&HardwareController::feedSafety, this, _1));
+        //safetySubscrip = create_subscription<std_msgs::msg::Bool>("safety_enable", 10, std::bind(&HardwareController::feedSafety, this, _1));
         safetyStamp = std::chrono::system_clock::now().time_since_epoch();
-        safetyTimer = create_wall_timer(SAFETY_TIMEOUT_CHECK, std::bind(&HardwareController::safetyTimerUpdate, this));
+        //safetyTimer = create_wall_timer(SAFETY_TIMEOUT_CHECK, std::bind(&HardwareController::safetyTimerUpdate, this));
     }
 
     void registerGpio(std::vector<GpioPort> ports) {
@@ -171,7 +163,7 @@ public:
         }
     }
 
-    void feedSafety(std::shared_ptr<std_msgs::msg::Bool> msg) {
+    /*void feedSafety(std::shared_ptr<std_msgs::msg::Bool> msg) {
         if (msg->data) {
             safetyStamp = std::chrono::system_clock::now().time_since_epoch();
             unsafe();
@@ -196,24 +188,22 @@ public:
         std::map<GpioPort, std::shared_ptr<LineCaller>>::iterator it;
         for (it = lines.begin(); it != lines.end(); it++) {
             if (it->second->getDir() > 0) {
-                it->second->setSafeFlag(false);
                 it->second->setVal(false);
             }
         }
     }
 
-    void unsafe() {
+    /*void unsafe() {
         if (!safetyEnable) {
             RCLCPP_INFO(this->get_logger(), "Unsafing lines");
             safetyEnable = true;
             std::map<GpioPort, std::shared_ptr<LineCaller>>::iterator it;
             for (it = lines.begin(); it != lines.end(); it++) {
                 if (it->second->getDir() > 0) {
-                    it->second->setSafeFlag(true);
                 }
             }
         }
-    }
+    }*/
 };
 
 int main(int argc, char** argv) {
@@ -274,7 +264,7 @@ int main(int argc, char** argv) {
             //RCLCPP_INFO(rosNode->get_logger(), "Registered GPIO Lines");
 
             //set all gpio to off
-            rosNode->safe();
+            //rosNode->safe();
 
             RCLCPP_INFO(rosNode->get_logger(), "Hardware interface node loaded using gpiod interface");
 
@@ -284,7 +274,7 @@ int main(int argc, char** argv) {
             RCLCPP_INFO(rosNode->get_logger(), "Hardware interface shutting down");
 
             //set all gpio to off
-            rosNode->safe();
+            //rosNode->safe();
         } catch (const std::exception& e) {
             RCLCPP_ERROR(rosNode->get_logger(), "Node failed\nCause: %s", e.what());
         } catch (...) {
